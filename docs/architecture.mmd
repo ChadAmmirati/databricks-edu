@@ -1,0 +1,36 @@
+flowchart LR
+  subgraph SRC["Source"]
+    A[Ed-Fi ODS / Sandbox / Synthetic]
+  end
+
+  subgraph LJ["Lakeflow Job (replaces Airflow)"]
+    direction TB
+    T1["bronze_extract<br/>(notebook)"]
+    T2["silver_pipeline<br/>(SDP)"]
+    T3["gold_pipeline<br/>(SDP)"]
+    T4["e2e_tests<br/>(notebook)"]
+    T1 --> T2 --> T3 --> T4
+  end
+
+  subgraph UC["Unity Catalog: edu_demo"]
+    direction TB
+    B[("edu_bronze<br/>~73 data resources (+48 descriptor endpoints)<br/>+ _meta_change_versions")]
+    S[("edu_silver<br/>~147 base + stage tables<br/>(metadata-driven)")]
+    G[("edu_gold<br/>58 marts (23 dims + 33 facts + msr + bridge)<br/>(EDU edu_wh equivalent)")]
+  end
+
+  A -->|"OAuth + paged GET<br/>(EdFiClient)"| T1
+  T1 --> B
+  T2 --> S
+  B --> T2
+  T3 --> G
+  S --> T3
+  G --> T4
+
+  classDef green fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20;
+  classDef blue  fill:#e3f2fd,stroke:#1565c0,color:#0d47a1;
+  classDef gray  fill:#f5f5f5,stroke:#616161,color:#212121;
+
+  class B,S,G blue
+  class T1,T2,T3,T4 green
+  class A gray

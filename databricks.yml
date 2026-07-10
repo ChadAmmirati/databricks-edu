@@ -1,0 +1,78 @@
+bundle:
+  name: edu-databricks
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog to deploy into.
+    default: edu_demo
+  bronze_schema:
+    description: Schema for raw Ed-Fi landing tables.
+    default: edu_bronze
+  silver_schema:
+    description: Schema for cleaned/typed staging tables.
+    default: edu_silver
+  gold_schema:
+    description: Schema for dim/fct marts.
+    default: edu_gold
+  data_mode:
+    description: "How Bronze sources its data. One of: 'sandbox' (hit api.ed-fi.org), 'synthetic' (generate locally), 'custom' (set edfi_base_url/edfi_client_key/edfi_client_secret yourself)."
+    default: synthetic
+  edfi_base_url:
+    description: Base URL of the Ed-Fi API (e.g. https://api.ed-fi.org/v7.3/api).
+    default: https://api.ed-fi.org/v7.3/api
+  edfi_secret_scope:
+    description: Databricks secret scope holding keys 'edfi_client_key' and 'edfi_client_secret'. Preferred over the plaintext variables below, which are visible in the job UI.
+    default: ""
+  edfi_client_key:
+    description: Ed-Fi API client_key (plaintext fallback — use edfi_secret_scope for real credentials).
+    default: ""
+  edfi_client_secret:
+    description: Ed-Fi API client_secret (plaintext fallback — use edfi_secret_scope for real credentials).
+    default: ""
+  api_year:
+    description: School-year tag applied to all extracted rows (Ed-Fi 'api_year').
+    default: "2026"
+  tenant_code:
+    description: Tenant code applied to all extracted rows.
+    default: "demo"
+  chronic_absence_threshold:
+    description: Attendance-rate percent below which a student is chronically absent (EDU/TN default 90).
+    default: "90"
+  chronic_absence_min_days:
+    description: Minimum attendance days before the chronic-absence flag applies (EDU/TN default 20).
+    default: "20"
+  multiple_races_code:
+    description: Label for students reported with more than one race (federal rollup default Multiple).
+    default: "Multiple"
+  hispanic_latino_code:
+    description: Label for Hispanic/Latino ethnicity in the race/ethnicity rollup (default Latinx).
+    default: "Latinx"
+  race_unknown_code:
+    description: Label when a student has no reported race (default Unknown).
+    default: "Unknown"
+
+# The workspace host comes from your Databricks CLI profile (`-p <profile>`) and
+# deploys run as the authenticated user, so this file carries no workspace identity.
+# Per-developer settings go in a gitignored *.local.env (see docs/ONBOARDING.md).
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+    resources:
+      pipelines:
+        edu_silver_pipeline:
+          development: false
+        edu_gold_pipeline:
+          development: false
+      jobs:
+        edu_ingestion_job:
+          schedule:
+            pause_status: UNPAUSED

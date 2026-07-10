@@ -1,0 +1,22 @@
+resources:
+  pipelines:
+    edu_gold_pipeline:
+      name: "[${bundle.target}] EDU Gold — warehouse marts"
+      catalog: ${var.catalog}
+      target: ${var.gold_schema}
+      serverless: true
+      photon: true
+      development: true
+      libraries:
+        - notebook:
+            path: ../notebooks/20_gold_pipeline.py
+      configuration:
+        edu.catalog: ${var.catalog}
+        edu.silver_schema: ${var.silver_schema}
+        edu.gold_schema: ${var.gold_schema}
+        edu.chronic_absence_threshold: ${var.chronic_absence_threshold}
+        edu.chronic_absence_min_days: ${var.chronic_absence_min_days}
+        edu.multiple_races_code: ${var.multiple_races_code}
+        edu.hispanic_latino_code: ${var.hispanic_latino_code}
+        edu.race_unknown_code: ${var.race_unknown_code}
+      continuous: false

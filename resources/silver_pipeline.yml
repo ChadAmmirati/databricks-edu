@@ -1,0 +1,17 @@
+resources:
+  pipelines:
+    edu_silver_pipeline:
+      name: "[${bundle.target}] EDU Silver — Ed-Fi staging"
+      catalog: ${var.catalog}
+      target: ${var.silver_schema}
+      serverless: true
+      photon: true
+      development: true
+      libraries:
+        - notebook:
+            path: ../notebooks/10_silver_pipeline.py
+      configuration:
+        edu.catalog: ${var.catalog}
+        edu.bronze_schema: ${var.bronze_schema}
+        edu.silver_schema: ${var.silver_schema}
+      continuous: false

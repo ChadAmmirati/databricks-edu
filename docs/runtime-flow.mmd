@@ -1,0 +1,42 @@
+sequenceDiagram
+    autonumber
+    participant Job as Lakeflow Job
+    participant NB as 00_extract_bronze (notebook task)
+    participant API as Ed-Fi API
+    participant UC as Unity Catalog
+    participant SS as Silver SDP
+    participant GS as Gold SDP
+    participant E2E as 99_run_e2e_tests
+
+    Job->>NB: start bronze_extract
+    NB->>UC: ensure schema edu_demo.edu_bronze
+    NB->>UC: SELECT last_change_version FROM _meta_change_versions
+    UC-->>NB: { resource → last_cv }
+    NB->>API: POST /oauth/token
+    API-->>NB: access_token (1800s)
+    loop For each Ed-Fi resource in resources.yml
+        NB->>API: GET /data/v3/{resource}?minChangeVersion=cv&offset=0&limit=500
+        API-->>NB: page of records
+        NB->>NB: serialize to (tenant, year, ts, cv, guid, payload)
+        NB->>UC: APPEND to {resource}_raw
+    end
+    NB->>UC: MERGE _meta_change_versions
+    NB-->>Job: rows_landed_total
+
+    Job->>SS: start silver_pipeline (SDP)
+    SS->>UC: read bronze.{resource}_raw (~73)
+    SS->>UC: write silver.{resource}_base / silver.{resource} (~73×2)
+    SS-->>Job: green
+
+    Job->>GS: start gold_pipeline (SDP)
+    GS->>UC: read silver.* (joins)
+    GS->>UC: write gold.dim_* / fct_* / msr_* / brg_* (× 58)
+    GS-->>Job: green
+
+    Job->>E2E: start e2e_tests notebook
+    E2E->>UC: count, PK uniqueness, FK resolution, invariants
+    alt all green
+        E2E-->>Job: success
+    else any failure
+        E2E-->>Job: AssertionError (fails the job)
+    end

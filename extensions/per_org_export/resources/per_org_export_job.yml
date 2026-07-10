@@ -1,0 +1,77 @@
+# =============================================================================
+# OPT-IN EXTENSION JOB — NOT deployed by default.
+#
+# The root databricks.yml only includes resources/*.yml, so this file is inert
+# until you opt in. To deploy it:
+#   1. Add this path to the `include:` list in databricks.yml, e.g.
+#        include:
+#          - resources/*.yml
+#          - extensions/per_org_export/resources/per_org_export_job.yml
+#   2. Adjust the parameters below (catalog/schema/table/org_column/destination).
+#   3. Implement export.deliver() before flipping `deliver` to "true"
+#      (see extensions/README.md). Until then the job just produces per-org files
+#      in the Volume.
+#   4. `databricks bundle deploy`.
+#
+# Runs AFTER the warehouse exists — chain it off edu_ingestion_job, or schedule it
+# to follow the daily load.
+# =============================================================================
+resources:
+  jobs:
+    edu_per_org_export_job:
+      name: "[${bundle.target}] EDU Per-Org Export (gold -> per-organization files)"
+      description: |
+        Downstream-distribution extension. Splits a gold mart by an organization column
+        and writes one file per organization to a Unity Catalog Volume. External delivery
+        (SFTP/S3/vendor API) is an adopter-implemented seam (export.deliver).
+      tags:
+        project: edu-databricks
+        layer: extension
+
+      max_concurrent_runs: 1
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: gold_schema
+          default: ${var.gold_schema}
+        - name: table
+          default: fct_student_school_attendance_event
+        - name: org_column
+          default: school_id            # set to your routing org, e.g. supervisory_union_id
+        - name: volume
+          default: exports
+        - name: export_name
+          default: ""
+        - name: file_format
+          default: csv
+        - name: where
+          default: ""
+        - name: deliver
+          default: "false"              # flip to "true" only after implementing export.deliver()
+
+      tasks:
+        - task_key: per_org_export
+          description: Split a gold mart by organization and land one file per org.
+          notebook_task:
+            notebook_path: ../run_export.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              gold_schema: "{{job.parameters.gold_schema}}"
+              table: "{{job.parameters.table}}"
+              org_column: "{{job.parameters.org_column}}"
+              volume: "{{job.parameters.volume}}"
+              export_name: "{{job.parameters.export_name}}"
+              file_format: "{{job.parameters.file_format}}"
+              where: "{{job.parameters.where}}"
+              deliver: "{{job.parameters.deliver}}"
+          environment_key: export_env
+          timeout_seconds: 3600
+          max_retries: 1
+
+      environments:
+        - environment_key: export_env
+          spec:
+            client: "2"
+            dependencies:
+              - paramiko          # only needed once you implement SFTP delivery

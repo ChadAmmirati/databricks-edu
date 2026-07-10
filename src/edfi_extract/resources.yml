@@ -1,0 +1,722 @@
+# Ed-Fi resource manifest.
+#
+# Each entry describes one Ed-Fi endpoint to extract from the ODS/API and land
+# as a Delta table in the bronze schema. The manifest is the single source of
+# truth for what Bronze pulls and how Silver builds surrogate keys.
+#
+# Schema:
+#   name:       snake_case name; used as the bronze table name ('students' -> bronze.students_raw)
+#   path:       URL path under the data management API ('ed-fi/students')
+#   namespace:  Ed-Fi namespace ('ed-fi' core, 'tpdm' teacher prep, ...)
+#   key_paths:  full JSON paths (dot notation, validated against the Ed-Fi 7.3
+#               OpenAPI spec) of the natural-key fields. Silver hashes these
+#               (with tenant_code + api_year) into the dedupe surrogate key.
+#               NEVER assume a key field is top-level: most Ed-Fi keys live
+#               inside *Reference objects.
+#   deletes:    pull the /deletes change-query endpoint for this resource
+#               (default true; deletes are anti-joined out in Silver).
+#   optional:   endpoint may be absent on a given ODS / Data Standard version
+#               (e.g. 'parents' removed in DS 5.x, 'contacts' added in DS 5.x).
+#               A 404 marks it skipped instead of failing the run.
+
+resources:
+
+  # ---- Organizations & calendars ----
+  - name: state_education_agencies
+    path: ed-fi/stateEducationAgencies
+    key_paths:
+      - stateEducationAgencyId
+  - name: education_service_centers
+    path: ed-fi/educationServiceCenters
+    key_paths:
+      - educationServiceCenterId
+  - name: local_education_agencies
+    path: ed-fi/localEducationAgencies
+    key_paths:
+      - localEducationAgencyId
+  - name: schools
+    path: ed-fi/schools
+    key_paths:
+      - schoolId
+  - name: education_organization_networks
+    path: ed-fi/educationOrganizationNetworks
+    key_paths:
+      - educationOrganizationNetworkId
+  - name: education_organization_network_associations
+    path: ed-fi/educationOrganizationNetworkAssociations
+    key_paths:
+      - educationOrganizationNetworkReference.educationOrganizationNetworkId
+      - memberEducationOrganizationReference.educationOrganizationId
+  - name: post_secondary_institutions
+    path: ed-fi/postSecondaryInstitutions
+    key_paths:
+      - postSecondaryInstitutionId
+    optional: true
+  - name: programs
+    path: ed-fi/programs
+    key_paths:
+      - educationOrganizationReference.educationOrganizationId
+      - programName
+      - programTypeDescriptor
+  - name: cohorts
+    path: ed-fi/cohorts
+    key_paths:
+      - educationOrganizationReference.educationOrganizationId
+      - cohortIdentifier
+  - name: locations
+    path: ed-fi/locations
+    key_paths:
+      - classroomIdentificationCode
+      - schoolReference.schoolId
+  - name: bell_schedules
+    path: ed-fi/bellSchedules
+    key_paths:
+      - bellScheduleName
+      - schoolReference.schoolId
+  - name: class_periods
+    path: ed-fi/classPeriods
+    key_paths:
+      - classPeriodName
+      - schoolReference.schoolId
+  - name: calendars
+    path: ed-fi/calendars
+    key_paths:
+      - calendarCode
+      - schoolReference.schoolId
+      - schoolYearTypeReference.schoolYear
+  - name: calendar_dates
+    path: ed-fi/calendarDates
+    key_paths:
+      - calendarReference.calendarCode
+      - calendarReference.schoolId
+      - calendarReference.schoolYear
+      - date
+  - name: sessions
+    path: ed-fi/sessions
+    key_paths:
+      - schoolReference.schoolId
+      - schoolYearTypeReference.schoolYear
+      - sessionName
+  - name: grading_periods
+    path: ed-fi/gradingPeriods
+    key_paths:
+      - periodSequence
+      - gradingPeriodDescriptor
+      - schoolReference.schoolId
+      - schoolYearTypeReference.schoolYear
+  - name: graduation_plans
+    path: ed-fi/graduationPlans
+    key_paths:
+      - educationOrganizationReference.educationOrganizationId
+      - graduationPlanTypeDescriptor
+      - graduationSchoolYearTypeReference.schoolYear
+  - name: courses
+    path: ed-fi/courses
+    key_paths:
+      - courseCode
+      - educationOrganizationReference.educationOrganizationId
+  - name: course_offerings
+    path: ed-fi/courseOfferings
+    key_paths:
+      - localCourseCode
+      - schoolReference.schoolId
+      - sessionReference.schoolYear
+      - sessionReference.sessionName
+  - name: sections
+    path: ed-fi/sections
+    key_paths:
+      - courseOfferingReference.localCourseCode
+      - courseOfferingReference.schoolId
+      - courseOfferingReference.schoolYear
+      - courseOfferingReference.sessionName
+      - sectionIdentifier
+
+  # ---- People ----
+  - name: students
+    path: ed-fi/students
+    key_paths:
+      - studentUniqueId
+  - name: staffs
+    path: ed-fi/staffs
+    key_paths:
+      - staffUniqueId
+  - name: parents
+    path: ed-fi/parents
+    key_paths:
+      - parentUniqueId
+    optional: true
+  - name: contacts
+    path: ed-fi/contacts
+    key_paths:
+      - contactUniqueId
+    optional: true
+  - name: people
+    path: ed-fi/people
+    key_paths:
+      - personId
+      - sourceSystemDescriptor
+    optional: true
+
+  # ---- Enrollment / association tables ----
+  - name: student_school_associations
+    path: ed-fi/studentSchoolAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - schoolReference.schoolId
+      - entryDate
+  - name: student_section_associations
+    path: ed-fi/studentSectionAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - sectionReference.localCourseCode
+      - sectionReference.schoolId
+      - sectionReference.schoolYear
+      - sectionReference.sessionName
+      - sectionReference.sectionIdentifier
+      - beginDate
+  - name: student_education_organization_associations
+    path: ed-fi/studentEducationOrganizationAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+  - name: student_education_organization_responsibility_associations
+    path: ed-fi/studentEducationOrganizationResponsibilityAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - responsibilityDescriptor
+      - beginDate
+  - name: student_cohort_associations
+    path: ed-fi/studentCohortAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - cohortReference.cohortIdentifier
+      - cohortReference.educationOrganizationId
+      - beginDate
+  - name: student_parent_associations
+    path: ed-fi/studentParentAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - parentReference.parentUniqueId
+    optional: true
+  - name: student_contact_associations
+    path: ed-fi/studentContactAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - contactReference.contactUniqueId
+    optional: true
+  - name: staff_school_associations
+    path: ed-fi/staffSchoolAssociations
+    key_paths:
+      - staffReference.staffUniqueId
+      - schoolReference.schoolId
+      - programAssignmentDescriptor
+  - name: staff_section_associations
+    path: ed-fi/staffSectionAssociations
+    key_paths:
+      - staffReference.staffUniqueId
+      - sectionReference.localCourseCode
+      - sectionReference.schoolId
+      - sectionReference.schoolYear
+      - sectionReference.sessionName
+      - sectionReference.sectionIdentifier
+  - name: staff_education_organization_assignment_associations
+    path: ed-fi/staffEducationOrganizationAssignmentAssociations
+    key_paths:
+      - staffReference.staffUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - staffClassificationDescriptor
+      - beginDate
+  - name: staff_education_organization_employment_associations
+    path: ed-fi/staffEducationOrganizationEmploymentAssociations
+    key_paths:
+      - staffReference.staffUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - employmentStatusDescriptor
+      - hireDate
+
+  # ---- Programs ----
+  - name: student_program_associations
+    path: ed-fi/studentProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - programReference.programTypeDescriptor
+      - beginDate
+  - name: student_special_education_program_associations
+    path: ed-fi/studentSpecialEducationProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - programReference.programTypeDescriptor
+      - beginDate
+  - name: student_special_education_program_eligibility_associations
+    path: ed-fi/studentSpecialEducationProgramEligibilityAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - programReference.programTypeDescriptor
+      - consentToEvaluationReceivedDate
+  - name: student_homeless_program_associations
+    path: ed-fi/studentHomelessProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - beginDate
+  - name: student_language_instruction_program_associations
+    path: ed-fi/studentLanguageInstructionProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - beginDate
+  - name: student_title_i_part_a_program_associations
+    path: ed-fi/studentTitleIPartAProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - beginDate
+  - name: student_cte_program_associations
+    path: ed-fi/studentCTEProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - beginDate
+  - name: student_migrant_education_program_associations
+    path: ed-fi/studentMigrantEducationProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - beginDate
+  - name: student_school_food_service_program_association
+    path: ed-fi/studentSchoolFoodServiceProgramAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - educationOrganizationReference.educationOrganizationId
+      - programReference.programName
+      - beginDate
+  - name: program_evaluations
+    path: ed-fi/programEvaluations
+    key_paths:
+      - programEvaluationTitle
+      - programReference.programName
+      - programReference.programTypeDescriptor
+    optional: true
+  - name: student_program_evaluations
+    path: ed-fi/studentProgramEvaluations
+    key_paths:
+      - studentReference.studentUniqueId
+      - programEvaluationReference.programEvaluationTitle
+      - evaluationDate
+    optional: true
+
+  # ---- Attendance & grades ----
+  - name: student_school_attendance_events
+    path: ed-fi/studentSchoolAttendanceEvents
+    key_paths:
+      - studentReference.studentUniqueId
+      - schoolReference.schoolId
+      - sessionReference.schoolYear
+      - sessionReference.sessionName
+      - eventDate
+      - attendanceEventCategoryDescriptor
+  - name: student_section_attendance_events
+    path: ed-fi/studentSectionAttendanceEvents
+    key_paths:
+      - studentReference.studentUniqueId
+      - sectionReference.localCourseCode
+      - sectionReference.schoolId
+      - sectionReference.schoolYear
+      - sectionReference.sessionName
+      - sectionReference.sectionIdentifier
+      - eventDate
+      - attendanceEventCategoryDescriptor
+  - name: grades
+    path: ed-fi/grades
+    key_paths:
+      - studentSectionAssociationReference.studentUniqueId
+      - studentSectionAssociationReference.localCourseCode
+      - studentSectionAssociationReference.schoolId
+      - studentSectionAssociationReference.schoolYear
+      - studentSectionAssociationReference.sessionName
+      - studentSectionAssociationReference.sectionIdentifier
+      - studentSectionAssociationReference.beginDate
+      - gradingPeriodReference.gradingPeriodDescriptor
+      - gradingPeriodReference.gradingPeriodName
+      - gradeTypeDescriptor
+  - name: student_academic_records
+    path: ed-fi/studentAcademicRecords
+    key_paths:
+      - studentReference.studentUniqueId
+      - schoolYearTypeReference.schoolYear
+      - termDescriptor
+      - educationOrganizationReference.educationOrganizationId
+  - name: course_transcripts
+    path: ed-fi/courseTranscripts
+    key_paths:
+      - studentAcademicRecordReference.studentUniqueId
+      - studentAcademicRecordReference.schoolYear
+      - studentAcademicRecordReference.termDescriptor
+      - courseReference.courseCode
+      - courseAttemptResultDescriptor
+      - courseReference.educationOrganizationId
+
+  # ---- Assessments ----
+  - name: assessments
+    path: ed-fi/assessments
+    key_paths:
+      - assessmentIdentifier
+      - namespace
+  - name: objective_assessments
+    path: ed-fi/objectiveAssessments
+    key_paths:
+      - assessmentReference.assessmentIdentifier
+      - identificationCode
+      - assessmentReference.namespace
+  - name: student_assessments
+    path: ed-fi/studentAssessments
+    key_paths:
+      - studentAssessmentIdentifier
+      - assessmentReference.assessmentIdentifier
+      - assessmentReference.namespace
+      - studentReference.studentUniqueId
+  - name: learning_standards
+    path: ed-fi/learningStandards
+    key_paths:
+      - learningStandardId
+
+  # ---- Discipline ----
+  - name: discipline_incidents
+    path: ed-fi/disciplineIncidents
+    key_paths:
+      - incidentIdentifier
+      - schoolReference.schoolId
+  - name: discipline_actions
+    path: ed-fi/disciplineActions
+    key_paths:
+      - studentReference.studentUniqueId
+      - disciplineActionIdentifier
+      - disciplineDate
+  - name: student_discipline_incident_associations
+    path: ed-fi/studentDisciplineIncidentAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - disciplineIncidentReference.incidentIdentifier
+      - disciplineIncidentReference.schoolId
+    optional: true
+  - name: student_discipline_incident_behavior_associations
+    path: ed-fi/studentDisciplineIncidentBehaviorAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - disciplineIncidentReference.incidentIdentifier
+      - disciplineIncidentReference.schoolId
+      - behaviorDescriptor
+  - name: student_discipline_incident_non_offender_associations
+    path: ed-fi/studentDisciplineIncidentNonOffenderAssociations
+    key_paths:
+      - studentReference.studentUniqueId
+      - disciplineIncidentReference.incidentIdentifier
+      - disciplineIncidentReference.schoolId
+  - name: restraint_events
+    path: ed-fi/restraintEvents
+    key_paths:
+      - studentReference.studentUniqueId
+      - schoolReference.schoolId
+      - restraintEventIdentifier
+    optional: true
+
+  # ---- Surveys ----
+  - name: surveys
+    path: ed-fi/surveys
+    key_paths:
+      - surveyIdentifier
+      - namespace
+    optional: true
+  - name: survey_sections
+    path: ed-fi/surveySections
+    key_paths:
+      - surveyReference.surveyIdentifier
+      - surveySectionTitle
+      - surveyReference.namespace
+    optional: true
+  - name: survey_questions
+    path: ed-fi/surveyQuestions
+    key_paths:
+      - surveyReference.surveyIdentifier
+      - questionCode
+      - surveyReference.namespace
+    optional: true
+  - name: survey_responses
+    path: ed-fi/surveyResponses
+    key_paths:
+      - surveyReference.surveyIdentifier
+      - surveyResponseIdentifier
+      - surveyReference.namespace
+    optional: true
+  - name: survey_section_responses
+    path: ed-fi/surveySectionResponses
+    key_paths:
+      - surveyResponseReference.surveyIdentifier
+      - surveyResponseReference.surveyResponseIdentifier
+      - surveySectionReference.surveySectionTitle
+      - surveyResponseReference.namespace
+    optional: true
+  - name: survey_question_responses
+    path: ed-fi/surveyQuestionResponses
+    key_paths:
+      - surveyQuestionReference.surveyIdentifier
+      - surveyResponseReference.surveyResponseIdentifier
+      - surveyQuestionReference.questionCode
+      - surveyQuestionReference.namespace
+    optional: true
+  - name: survey_response_education_organization_target_associations
+    path: ed-fi/surveyResponseEducationOrganizationTargetAssociations
+    key_paths:
+      - surveyResponseReference.surveyIdentifier
+      - surveyResponseReference.surveyResponseIdentifier
+      - educationOrganizationReference.educationOrganizationId
+      - surveyResponseReference.namespace
+    optional: true
+
+  # ---- Credentials (TPDM) ----
+  - name: credentials
+    path: ed-fi/credentials
+    key_paths:
+      - credentialIdentifier
+      - stateOfIssueStateAbbreviationDescriptor
+    optional: true
+
+  # ---- TPDM (Teacher Preparation Data Model) extension ----
+  - name: candidates
+    path: tpdm/candidates
+    namespace: tpdm
+    key_paths:
+      - candidateIdentifier
+    optional: true
+  - name: educator_preparation_programs
+    path: tpdm/educatorPreparationPrograms
+    namespace: tpdm
+    key_paths:
+      - programName
+      - programTypeDescriptor
+      - educationOrganizationReference.educationOrganizationId
+    optional: true
+  - name: candidate_educator_preparation_program_associations
+    path: tpdm/candidateEducatorPreparationProgramAssociations
+    namespace: tpdm
+    key_paths:
+      - candidateReference.candidateIdentifier
+      - educatorPreparationProgramReference.programName
+      - educatorPreparationProgramReference.programTypeDescriptor
+      - educatorPreparationProgramReference.educationOrganizationId
+      - beginDate
+    optional: true
+
+  # ---- Descriptor endpoints (label resolution) ----
+  # Ed-Fi *Descriptors reference resources. Pulled so Silver's `_descriptors`
+  # lookup can resolve descriptor URIs (uri://.../XDescriptor#code) to their
+  # human shortDescription. NO /deletes (descriptors are reference data);
+  # `optional` so a descriptor missing on a given ODS never fails a run. This
+  # set is kept in lockstep with the synthetic generator by
+  # tests/unit/test_synthetic.py::test_manifest_descriptors_match_generator.
+  - name: academic_subject_descriptors
+    path: ed-fi/academicSubjectDescriptors
+    deletes: false
+    optional: true
+  - name: address_type_descriptors
+    path: ed-fi/addressTypeDescriptors
+    deletes: false
+    optional: true
+  - name: assessment_category_descriptors
+    path: ed-fi/assessmentCategoryDescriptors
+    deletes: false
+    optional: true
+  - name: assessment_reporting_method_descriptors
+    path: ed-fi/assessmentReportingMethodDescriptors
+    deletes: false
+    optional: true
+  - name: attendance_event_category_descriptors
+    path: ed-fi/attendanceEventCategoryDescriptors
+    deletes: false
+    optional: true
+  - name: behavior_descriptors
+    path: ed-fi/behaviorDescriptors
+    deletes: false
+    optional: true
+  - name: calendar_event_descriptors
+    path: ed-fi/calendarEventDescriptors
+    deletes: false
+    optional: true
+  - name: calendar_type_descriptors
+    path: ed-fi/calendarTypeDescriptors
+    deletes: false
+    optional: true
+  - name: classroom_position_descriptors
+    path: ed-fi/classroomPositionDescriptors
+    deletes: false
+    optional: true
+  - name: cohort_type_descriptors
+    path: ed-fi/cohortTypeDescriptors
+    deletes: false
+    optional: true
+  - name: course_attempt_result_descriptors
+    path: ed-fi/courseAttemptResultDescriptors
+    deletes: false
+    optional: true
+  - name: credential_type_descriptors
+    path: ed-fi/credentialTypeDescriptors
+    deletes: false
+    optional: true
+  - name: diploma_level_descriptors
+    path: ed-fi/diplomaLevelDescriptors
+    deletes: false
+    optional: true
+  - name: diploma_type_descriptors
+    path: ed-fi/diplomaTypeDescriptors
+    deletes: false
+    optional: true
+  - name: discipline_descriptors
+    path: ed-fi/disciplineDescriptors
+    deletes: false
+    optional: true
+  - name: discipline_incident_participation_code_descriptors
+    path: ed-fi/disciplineIncidentParticipationCodeDescriptors
+    deletes: false
+    optional: true
+  - name: education_organization_category_descriptors
+    path: ed-fi/educationOrganizationCategoryDescriptors
+    deletes: false
+    optional: true
+  - name: educational_environment_descriptors
+    path: ed-fi/educationalEnvironmentDescriptors
+    deletes: false
+    optional: true
+  - name: employment_status_descriptors
+    path: ed-fi/employmentStatusDescriptors
+    deletes: false
+    optional: true
+  - name: grade_level_descriptors
+    path: ed-fi/gradeLevelDescriptors
+    deletes: false
+    optional: true
+  - name: grade_point_average_type_descriptors
+    path: ed-fi/gradePointAverageTypeDescriptors
+    deletes: false
+    optional: true
+  - name: grade_type_descriptors
+    path: ed-fi/gradeTypeDescriptors
+    deletes: false
+    optional: true
+  - name: grading_period_descriptors
+    path: ed-fi/gradingPeriodDescriptors
+    deletes: false
+    optional: true
+  - name: graduation_plan_type_descriptors
+    path: ed-fi/graduationPlanTypeDescriptors
+    deletes: false
+    optional: true
+  - name: level_of_education_descriptors
+    path: ed-fi/levelOfEducationDescriptors
+    deletes: false
+    optional: true
+  - name: limited_english_proficiency_descriptors
+    path: ed-fi/limitedEnglishProficiencyDescriptors
+    deletes: false
+    optional: true
+  - name: local_education_agency_category_descriptors
+    path: ed-fi/localEducationAgencyCategoryDescriptors
+    deletes: false
+    optional: true
+  - name: network_purpose_descriptors
+    path: ed-fi/networkPurposeDescriptors
+    deletes: false
+    optional: true
+  - name: performance_base_conversion_descriptors
+    path: ed-fi/performanceBaseConversionDescriptors
+    deletes: false
+    optional: true
+  - name: program_assignment_descriptors
+    path: ed-fi/programAssignmentDescriptors
+    deletes: false
+    optional: true
+  - name: program_evaluation_period_descriptors
+    path: ed-fi/programEvaluationPeriodDescriptors
+    deletes: false
+    optional: true
+  - name: program_evaluation_type_descriptors
+    path: ed-fi/programEvaluationTypeDescriptors
+    deletes: false
+    optional: true
+  - name: program_type_descriptors
+    path: ed-fi/programTypeDescriptors
+    deletes: false
+    optional: true
+  - name: question_form_descriptors
+    path: ed-fi/questionFormDescriptors
+    deletes: false
+    optional: true
+  - name: race_descriptors
+    path: ed-fi/raceDescriptors
+    deletes: false
+    optional: true
+  - name: relation_descriptors
+    path: ed-fi/relationDescriptors
+    deletes: false
+    optional: true
+  - name: responsibility_descriptors
+    path: ed-fi/responsibilityDescriptors
+    deletes: false
+    optional: true
+  - name: result_datatype_type_descriptors
+    path: ed-fi/resultDatatypeTypeDescriptors
+    deletes: false
+    optional: true
+  - name: school_category_descriptors
+    path: ed-fi/schoolCategoryDescriptors
+    deletes: false
+    optional: true
+  - name: service_descriptors
+    path: ed-fi/serviceDescriptors
+    deletes: false
+    optional: true
+  - name: sex_descriptors
+    path: ed-fi/sexDescriptors
+    deletes: false
+    optional: true
+  - name: source_system_descriptors
+    path: ed-fi/sourceSystemDescriptors
+    deletes: false
+    optional: true
+  - name: staff_classification_descriptors
+    path: ed-fi/staffClassificationDescriptors
+    deletes: false
+    optional: true
+  - name: state_abbreviation_descriptors
+    path: ed-fi/stateAbbreviationDescriptors
+    deletes: false
+    optional: true
+  - name: teaching_credential_descriptors
+    path: ed-fi/teachingCredentialDescriptors
+    deletes: false
+    optional: true
+  - name: term_descriptors
+    path: ed-fi/termDescriptors
+    deletes: false
+    optional: true
+  - name: tpdm_program_type_descriptors
+    path: tpdm/programTypeDescriptors
+    namespace: tpdm
+    deletes: false
+    optional: true
+  - name: tpdm_e_p_p_program_pathway_descriptors
+    path: tpdm/eppProgramPathwayDescriptors
+    namespace: tpdm
+    deletes: false
+    optional: true

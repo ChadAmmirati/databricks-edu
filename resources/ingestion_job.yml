@@ -1,0 +1,113 @@
+resources:
+  jobs:
+    edu_ingestion_job:
+      name: "[${bundle.target}] EDU Ingestion (Bronze → Silver → Gold → E2E)"
+      description: |
+        Databricks-native replacement for the Enable Data Union (EDU) ingestion pipeline.
+        Bronze: Ed-Fi API → Delta. Silver: typed/deduped staging via SDP. Gold: dim/fct marts via SDP.
+        Replaces edu_edfi_airflow + edu_edfi_source + edu_wh.
+      tags:
+        project: edu-databricks
+
+      schedule:
+        quartz_cron_expression: "0 0 5 * * ?"  # 5am Eastern daily; paused by default in dev
+        timezone_id: America/New_York
+        pause_status: PAUSED
+
+      # Uncomment and set your team's address before production rollout
+      # (see README §15 — production-readiness checklist).
+      # email_notifications:
+      #   on_failure:
+      #     - data-team@your-agency.example.gov
+
+      max_concurrent_runs: 1
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: bronze_schema
+          default: ${var.bronze_schema}
+        - name: silver_schema
+          default: ${var.silver_schema}
+        - name: gold_schema
+          default: ${var.gold_schema}
+        - name: tenant_code
+          default: ${var.tenant_code}
+        - name: api_year
+          default: ${var.api_year}
+        - name: data_mode
+          default: ${var.data_mode}
+        - name: edfi_base_url
+          default: ${var.edfi_base_url}
+        # Prefer edfi_secret_scope in sandbox/custom modes: the notebook then
+        # reads keys 'edfi_client_key'/'edfi_client_secret' from that
+        # Databricks secret scope instead of these plaintext parameters.
+        - name: edfi_secret_scope
+          default: ${var.edfi_secret_scope}
+        - name: edfi_client_key
+          default: ${var.edfi_client_key}
+        - name: edfi_client_secret
+          default: ${var.edfi_client_secret}
+        - name: full_refresh
+          default: "false"
+        - name: resources_filter
+          default: ""
+
+      tasks:
+        - task_key: bronze_extract
+          description: Pull every Ed-Fi resource and land raw JSON to Delta.
+          notebook_task:
+            notebook_path: ../notebooks/00_extract_bronze.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              bronze_schema: "{{job.parameters.bronze_schema}}"
+              tenant_code: "{{job.parameters.tenant_code}}"
+              api_year: "{{job.parameters.api_year}}"
+              data_mode: "{{job.parameters.data_mode}}"
+              edfi_base_url: "{{job.parameters.edfi_base_url}}"
+              edfi_secret_scope: "{{job.parameters.edfi_secret_scope}}"
+              edfi_client_key: "{{job.parameters.edfi_client_key}}"
+              edfi_client_secret: "{{job.parameters.edfi_client_secret}}"
+              full_refresh: "{{job.parameters.full_refresh}}"
+              resources_filter: "{{job.parameters.resources_filter}}"
+          environment_key: bronze_env
+          timeout_seconds: 3600
+          max_retries: 2
+
+        - task_key: silver_pipeline
+          description: Spark Declarative Pipeline — silver staging tables.
+          depends_on:
+            - task_key: bronze_extract
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.edu_silver_pipeline.id}
+            full_refresh: false
+
+        - task_key: gold_pipeline
+          description: Spark Declarative Pipeline — gold dim/fact marts.
+          depends_on:
+            - task_key: silver_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.edu_gold_pipeline.id}
+            full_refresh: false
+
+        - task_key: e2e_tests
+          description: Run end-to-end data-quality checks on gold.
+          depends_on:
+            - task_key: gold_pipeline
+          notebook_task:
+            notebook_path: ../notebooks/99_run_e2e_tests.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              gold_schema: "{{job.parameters.gold_schema}}"
+              silver_schema: "{{job.parameters.silver_schema}}"
+              bronze_schema: "{{job.parameters.bronze_schema}}"
+              data_mode: "{{job.parameters.data_mode}}"
+          environment_key: bronze_env
+
+      environments:
+        - environment_key: bronze_env
+          spec:
+            client: "2"
+            dependencies:
+              - pyyaml
+              - requests
