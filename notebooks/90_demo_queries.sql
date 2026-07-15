@@ -77,7 +77,6 @@ FROM fct_student_subgroup;
 
 SELECT
   ds.local_course_title,
-  ds.academic_subject := NULL,  -- subject is on dim_course, joined via course_code below
   ROUND(AVG(g.numeric_grade_earned), 2) AS avg_grade,
   COUNT(*)                              AS grades_recorded,
   ROUND(STDDEV(g.numeric_grade_earned), 2) AS grade_stddev
