@@ -4,8 +4,8 @@ Per-organization export — a downstream-distribution extension.
 The core pipeline (``src/``) ends at the gold warehouse. Some agencies must then push
 *subsets* of that warehouse back out to the organizations that contributed the data.
 A common example: an agency splits an attendance mart by the
-intermediate unit that owns each district (an ESC, LEA group, or **Supervisory Union**)
-and delivers one extract per unit over SFTP. This module is the reusable scaffold for that
+intermediate unit that owns each district (an ESC, a regional service agency, or any LEA
+grouping the state uses) and delivers one extract per unit over SFTP. This module is the reusable scaffold for that
 pattern — generalized so any agency can split by any organization column.
 
 It is deliberately split into two stages with different ownership:
@@ -42,7 +42,7 @@ class ExportConfig:
     catalog: str
     gold_schema: str
     table: str                 # gold mart to export, e.g. "fct_student_school_attendance_event"
-    org_column: str            # column to split on, e.g. "supervisory_union_id" / "lea_id"
+    org_column: str            # column to split on, e.g. "lea_id" / "school_id"
     volume: str = "exports"    # UC Volume under {catalog}.{gold_schema} to land files in
     export_name: Optional[str] = None       # subfolder name; defaults to `table`
     file_format: str = "csv"                # csv | parquet | json

@@ -10,9 +10,40 @@ Built to give any state or local education agency on the Ed-Fi Data Standard a p
 
 ---
 
+## Status, license, and support (read first)
+
+**What this is.** A complete, working reference implementation you deploy into your own
+Databricks workspace and own from there. It is a starting point engineered to production
+standards, not a managed service and not a licensed product.
+
+**Support.** This project is provided **as-is, without warranty or support commitment**.
+It is **not an officially supported Databricks product**, and it is not covered by any
+Databricks support agreement, SLA, or maintenance obligation. Once deployed, you own the
+code, the pipeline, and the data it produces. If you have questions about adopting it,
+raise them with your Databricks account team.
+
+**License.** [PolyForm Noncommercial 1.0.0](LICENSE.md), matching the license of the
+upstream Enable Data Union project it reimplements. Free for education agencies to use,
+modify, and run. Not licensed for commercial resale or for use in a commercial product or
+service. Read [LICENSE.md](LICENSE.md) before redistributing, and confirm the terms work
+for your institution.
+
+**How far it has been validated.** End-to-end green on generated synthetic data and on the
+Ed-Fi Alliance public sandbox (v7.3.2). It has **not** been row-reconciled against any
+agency's production ODS. Reconciliation against your own reports is the acceptance step,
+and it is your responsibility: see [§15](#15-production-readiness-checklist) and
+[docs/ONBOARDING.md Step 8](docs/ONBOARDING.md). Known limitations are listed honestly in
+[§19](#19-honest-gaps).
+
+**Your data stays yours.** Everything runs inside your own Databricks workspace and Unity
+Catalog. The pipeline sends no student data anywhere outside it. The only external calls it
+makes are to the Ed-Fi API endpoint you configure.
+
+---
+
 ## Documentation
 New here? Start with **[docs/ONBOARDING.md](docs/ONBOARDING.md)**.
-- [docs/ONBOARDING.md](docs/ONBOARDING.md) — adopt this for your institution (prerequisites, config, run, reconcile)
+- [docs/ONBOARDING.md](docs/ONBOARDING.md) — **deployment guide**: the step-by-step path from an empty workspace to a warehouse on your own ODS (prerequisites, auth, first run, real ODS, reconcile, production)
 - [docs/ENGINEERING_OVERVIEW.md](docs/ENGINEERING_OVERVIEW.md) — full code tour (Bronze → Silver → Gold → QC)
 - [docs/MART_PARITY.md](docs/MART_PARITY.md) — mart inventory + business-rule enhancements
 - [docs/DESCRIPTOR_RESOLUTION.md](docs/DESCRIPTOR_RESOLUTION.md) — descriptor label resolution design
@@ -101,7 +132,7 @@ It works. Daily ingestion happens. But it has six recurring problems any hand-wr
 | Spark OOM failures requiring manual memory tuning                         | Pipeline failures, on-call work, weekend escalations                                                 |
 | No curated dimensional warehouse — bronze and silver intermixed in one catalog | Analysts write the same JSON-unpacking SQL over and over                                              |
 | No data-quality monitoring                                               | Issues land in dashboards before they're noticed                                                      |
-| Single-author code with no documented owner                              | Bus factor of 0                                                                                       |
+| Single-author code with no documented owner                              | Knowledge concentrated in one person; hard to hand over                                               |
 | Not orchestrated as a real DAG                                           | No retries, no alerting, no incremental-load contract                                                |
 | Not extensible by people who don't know the codebase                     | Adding a new resource requires reading the whole notebook                                            |
 
@@ -111,7 +142,7 @@ The goal: **same Ed-Fi data → a curated, supported, dimensional warehouse, on 
 
 ## 3. What Enable Data Union does, and why we couldn't adopt it as-is
 
-[Enable Data Union](https://github.com/edanalytics/edu_wh) is an open-source framework from [Education Analytics](https://edanalytics.org/) — a non-profit that builds analytical infrastructure for state education agencies. It's actively used in production by Tennessee, Mississippi, and others.
+[Enable Data Union](https://github.com/edanalytics/edu_wh) is an open-source framework from [Education Analytics](https://edanalytics.org/) — a non-profit that builds analytical infrastructure for state education agencies. It is used in production by state education agencies today.
 
 It's three repos:
 
@@ -144,7 +175,7 @@ This is **correct and battle-tested**. We are not improving on EDU's design phil
 1. **Airflow.** Many agencies don't run Airflow and have no Airflow practitioners. Setting up an Airflow cluster, securing it, integrating with their identity, monitoring it, and training staff is a 6-month project on its own.
 2. **dbt.** Many agencies don't run dbt and don't want to take on a second transformation framework as a new skill burden — they want everything in one stack.
 3. **Snowflake.** They're already paying for Databricks. They have no Snowflake contract and no appetite to add one.
-4. **EDU was designed for AWS+Snowflake.** Tennessee's team did make it run on Databricks, but the work wasn't published. Without that work, every Databricks adopter is doing the same translation from scratch.
+4. **EDU was designed for AWS+Snowflake.** Its published stack assumes S3 and Snowflake, so there is no ready-made Databricks path. Without one, every Databricks adopter repeats the same translation from scratch.
 
 So: the **contract** EDU defines (this is what the warehouse should look like, this is what the surrogate keys are, this is how the staging tables shape the JSON) is exactly right and we keep it. The **implementation** doesn't fit the platform, so we rewrite it.
 
@@ -728,7 +759,7 @@ It's the supported, declarative, code-as-config deployment model for Databricks.
 
 ## 12. Installation & first run
 
-> Adopting this for your own institution? [docs/ONBOARDING.md](docs/ONBOARDING.md) is the step-by-step adopter guide (prerequisites, config, run, reconcile). The sections below are the reference detail behind it.
+> **Adopting this for your own institution? Follow [docs/ONBOARDING.md](docs/ONBOARDING.md) instead** — it is the ordered, step-by-step deployment guide, with a check after each step. The sections below are the reference detail behind it.
 
 ### Prerequisites
 
@@ -763,10 +794,14 @@ For service-principal deployments (CI/CD), use an OAuth M2M secret or PAT — se
 ### Get the code & deploy
 
 ```bash
-git clone <your-fork-or-this-repo-url> edu-databricks
-cd edu-databricks
+# From an archive:
+unzip edu-databricks.zip && cd edu-databricks
+git init && git add -A && git commit -m "Vendor drop: edu-databricks baseline"
 
-# Edit databricks.yml to point at your workspace + catalog (see §13).
+# Or from a repository:
+git clone <your-copy-of-this-repo> edu-databricks && cd edu-databricks
+
+# Set the `catalog` variable in databricks.yml to your catalog (see §13).
 
 export DATABRICKS_TF_EXEC_PATH=$(which terraform)   # avoids Terraform-signing-key issues
 make validate    # sanity-check the bundle
@@ -917,8 +952,8 @@ targets:
 
 The core pipeline stops at the gold warehouse. If you also need to push *subsets* of it
 back to the organizations that contributed the data — e.g. split an attendance mart by
-the intermediate unit that owns each district (an ESC, LEA group, or **Supervisory
-Union**) and deliver one file per unit over SFTP — that ships as an **opt-in extension** in
+the intermediate unit that owns each district (an ESC, a regional service agency, or any
+LEA grouping your state uses) and deliver one file per unit over SFTP — that ships as an **opt-in extension** in
 [`extensions/per_org_export/`](extensions/per_org_export). The per-org split is built and
 tested; the external delivery (SFTP/S3/vendor API) is a documented seam you complete with
 your own host and credentials. See [extensions/README.md](extensions/README.md).
@@ -987,7 +1022,7 @@ edu-databricks/
 │       ├── test_transforms.py
 │       └── test_per_org_export.py
 └── docs/
-    ├── ONBOARDING.md                 # Adopt this for your institution (start here)
+    ├── ONBOARDING.md                 # Deployment guide, step by step (start here)
     ├── ENGINEERING_OVERVIEW.md       # Full code tour (Bronze → Silver → Gold → QC)
     ├── ARCHITECTURE.md               # Deep EDU → Databricks mapping
     ├── MART_PARITY.md                # EDU mart inventory + business-rule enhancements
@@ -1043,7 +1078,7 @@ Genuine remaining items:
 - **Field-level coverage in Silver is curated, not exhaustive.** We extract the fields gold marts need; the rest live in `payload` STRING (queryable via `get_json_object`). Roughly ~30% of EDU's per-table column count.
 - **EDU's QC dbt models are reimagined, not literally translated.** Equivalent coverage via inline `@dlt.expect_*` + `qc_*` tables; semantically the same, structurally different.
 - **SEDM (Special Education Data Model) extension staging is not built.** Only impacts states using the SEDM extension explicitly.
-- **Downstream per-organization distribution** (split by intermediate unit — ESC / LEA group / Supervisory Union — + SFTP) ships as an opt-in extension scaffold in [`extensions/`](extensions/README.md), not as part of the core warehouse. The per-org split is implemented and tested; the external delivery is a documented seam you complete with your own host/credentials.
+- **Downstream per-organization distribution** (split by intermediate unit — ESC / regional service agency / LEA grouping — + SFTP) ships as an opt-in extension scaffold in [`extensions/`](extensions/README.md), not as part of the core warehouse. The per-org split is implemented and tested; the external delivery is a documented seam you complete with your own host/credentials.
 
 This project intentionally does **not** provide a dbt-based fallback. SDP is the Databricks-native answer; running EDU's dbt instead would defeat the entire purpose of single-stack consolidation. If literal-byte parity with a specific EDU mart is hard-required by a downstream consumer, the right move is to translate the missing mart into PySpark in `src/gold/pipeline.py` — same surrogate-key conventions, fully under our control.
 
@@ -1051,12 +1086,15 @@ This project intentionally does **not** provide a dbt-based fallback. SDP is the
 
 ## 20. Credits & how to contribute back
 
-Built by Databricks Field Engineering. Builds directly on the open-source work of [Education Analytics](https://github.com/edanalytics/) — the `edu_wh`, `edu_edfi_source`, `edu_edfi_airflow`, and `edfi_api_client` repos are the canonical references.
+Built by Databricks Field Engineering. Builds directly on the open-source work of [Education Analytics](https://github.com/edanalytics/) — the `edu_wh`, `edu_edfi_source`, `edu_edfi_airflow`, and `edfi_api_client` repos are the canonical references, and the credit for the warehouse design belongs to them.
 
-If you're a state agency or LEA who adopts this for your own warehouse:
+Attribution is not an endorsement or a support commitment. See [Status, license, and support](#status-license-and-support-read-first).
 
-- **Fork it.** This project is Polyform Non-Commercial (matching EDU's license) — free for SEAs/LEAs, paid for vendors.
-- **Open issues for any EDU model we haven't translated yet** that you actually need. The recipe to add one is documented above; a 1-line issue and we can scope it together.
-- **Contribute custom mart patterns back upstream.** If you build a `fct_my_state_specific_metric`, raise a PR with a comment block describing the use case. State agencies share more than they realize.
+If you are a state agency or LEA adopting this for your own warehouse:
 
-Questions, or want to bring this to your state or district? Open an issue or pull request on the repository.
+- **Make it yours.** Take your own copy and treat it as your code. You are expected to modify it: adding resources, fields, marts, and state-specific rules is the normal path, and §14 documents each one.
+- **Keep your changes reviewable.** Put your copy in your own version control before you start editing, so that a future colleague can see what you changed versus what shipped.
+- **Consider contributing upstream.** Improvements to the Ed-Fi warehouse *model* itself are worth raising with [Education Analytics](https://github.com/edanalytics/), where the wider Ed-Fi community will benefit. Education agencies share more than they realize.
+- **Mind the license.** [PolyForm Noncommercial 1.0.0](LICENSE.md) governs what you may redistribute. Check it before sharing your copy outside your institution.
+
+Questions about adopting this, or about anything in it that does not fit your ODS: bring them to your Databricks account team.

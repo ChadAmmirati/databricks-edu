@@ -95,7 +95,7 @@ Every gold mart joins on these keys, which are computed identically to EDU's `db
 **Overall parity: the full EDU gold surface area is built** (58 marts in `src/gold/pipeline.py`). Remaining work is business-rule fidelity and optional extensions (e.g. additional state-reporting marts), not missing tables — see "Business-rule enhancements" and "Remaining work" below.
 
 
-## Business-rule enhancements (closed gaps — 2026-06-25)
+## Business-rule enhancements (closed gaps)
 
 Built on top of the structural warehouse, each with a unit test and an end-to-end gate in `notebooks/99_run_e2e_tests.py`, and verified end-to-end on the Ed-Fi public sandbox. These close gaps previously listed under "Known divergences":
 
@@ -106,7 +106,7 @@ Built on top of the structural warehouse, each with a unit test and an end-to-en
 | **Program active/annual inclusion** | `is_active`/`is_annual` on all 7 program-association facts; `fct_student_subgroup` counts **active** membership only, so exited students no longer inflate SpEd/EL/Title-I counts. |
 | **Demographic race/ethnicity rollup** | `race_ethnicity` on `dim_student` (federal rollup: Hispanic→Latinx, multi-race→Multiple, none→Unknown; tunable labels). |
 
-## Known divergences from upstream EDU (2026-06-12 hardening pass; updated 2026-06-25)
+## Known divergences from upstream EDU
 
 Documented differences vs `edu_edfi_source`/`edu_wh` — review with your adopting agency before promising literal parity on these:
 

@@ -998,7 +998,7 @@ def fct_student_daily_attendance():
            table_properties={"quality": "gold"})
 def msr_student_cumulative_attendance():
     daily = dlt.read("fct_student_daily_attendance")
-    # Tunable chronic-absence rule (EDU/TN defaults: present < 90% over >= 20 days).
+    # Tunable chronic-absence rule (EDU defaults: present < 90% over >= 20 days).
     threshold = float(_conf("edu.chronic_absence_threshold", "90"))
     min_days = int(_conf("edu.chronic_absence_min_days", "20"))
     return (

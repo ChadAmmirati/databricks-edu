@@ -72,7 +72,7 @@ def resolve_descriptors(df: DataFrame, lookup: DataFrame, columns: List[str]) ->
 def chronic_absent_flag(attendance_rate: Column, total_days: Column, threshold_pct: float, min_days: int) -> Column:
     """Chronic-absenteeism flag: a student enrolled at least `min_days` who was
     present for less than `threshold_pct`% of them (i.e. absent >= 100-threshold_pct%).
-    Mirrors EDU's chronic-absence rule (TN defaults: threshold 90, min_days 20).
+    Mirrors EDU's chronic-absence rule (defaults: threshold 90, min_days 20).
     Null-safe: too few days, or a null rate, yields False (never NULL)."""
     return F.when(
         (total_days >= F.lit(min_days))

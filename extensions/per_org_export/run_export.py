@@ -5,7 +5,7 @@
 # MAGIC Splits a gold mart by an organization column and writes one file per organization
 # MAGIC to a Unity Catalog Volume. This is the **opt-in** downstream-distribution
 # MAGIC extension — it is *not* part of the default ingestion job. See
-# MAGIC `extensions/README.md` for the pattern and the worked Supervisory-Union/SFTP example.
+# MAGIC `extensions/README.md` for the pattern and the worked per-unit/SFTP example.
 # MAGIC
 # MAGIC The split is implemented and tested. External **delivery** (SFTP/S3/vendor API)
 # MAGIC is an adopter-specific seam (`export.deliver`) you complete with your own host and
@@ -16,7 +16,7 @@
 dbutils.widgets.text("catalog", "edu_demo")
 dbutils.widgets.text("gold_schema", "edu_gold")
 dbutils.widgets.text("table", "fct_student_school_attendance_event")
-dbutils.widgets.text("org_column", "school_id")  # e.g. supervisory_union_id / lea_id once modeled
+dbutils.widgets.text("org_column", "school_id")  # e.g. lea_id once modeled
 dbutils.widgets.text("volume", "exports")
 dbutils.widgets.text("export_name", "")          # subfolder; blank = table name
 dbutils.widgets.dropdown("file_format", "csv", ["csv", "parquet", "json"])
