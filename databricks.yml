@@ -39,10 +39,10 @@ variables:
     description: Tenant code applied to all extracted rows.
     default: "demo"
   chronic_absence_threshold:
-    description: Attendance-rate percent below which a student is chronically absent (EDU/TN default 90).
+    description: Attendance-rate percent below which a student is chronically absent (EDU default 90).
     default: "90"
   chronic_absence_min_days:
-    description: Minimum attendance days before the chronic-absence flag applies (EDU/TN default 20).
+    description: Minimum attendance days before the chronic-absence flag applies (EDU default 20).
     default: "20"
   multiple_races_code:
     description: Label for students reported with more than one race (federal rollup default Multiple).

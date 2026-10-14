@@ -38,7 +38,7 @@ resources:
         - name: table
           default: fct_student_school_attendance_event
         - name: org_column
-          default: school_id            # set to your routing org, e.g. supervisory_union_id
+          default: school_id            # set to your routing org, e.g. lea_id
         - name: volume
           default: exports
         - name: export_name

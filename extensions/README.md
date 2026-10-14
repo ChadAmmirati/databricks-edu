@@ -30,9 +30,9 @@ Rules for anything in this folder:
 
 **The need.** After the warehouse is built, some agencies push *subsets* of it back out
 to the organizations that contributed the data. A common case: an agency splits an
-attendance mart by the intermediate unit that owns each district (an ESC, LEA group, or
-**Supervisory Union**) and delivers one extract per unit over **SFTP** — the per-unit
-split plus paramiko SFTP push a hand-written pipeline often grows into.
+attendance mart by the intermediate unit that owns each district (an ESC, a regional
+service agency, or any LEA grouping the state uses) and delivers one extract per unit over
+**SFTP** — the per-unit split plus SFTP push a hand-written pipeline often grows into.
 
 **What ships here.** A generalized version of that pattern — split a gold mart by *any*
 organization column, write one file per organization. Two stages, on purpose:
